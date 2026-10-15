@@ -1,0 +1,23 @@
+{
+  "required": true,
+  "minVersion": "0.8",
+  "package": "com.mytestclient.mixin",
+  "compatibilityLevel": "JAVA_21",
+  "client": [
+    "CameraMixin",
+    "ChatInputSuggestorMixin",
+    "ClientPlayNetworkHandlerMixin",
+    "ClientWorldPropertiesMixin",
+    "EntityMixin",
+    "GameRendererMixin",
+    "MinecraftClientAccessor",
+    "MinecraftClientMixin",
+    "MountControlMixin",
+    "PlayerEntityMixin",
+    "SimpleOptionAccessor",
+    "WorldMixin"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}
