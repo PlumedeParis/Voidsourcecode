@@ -2,7 +2,6 @@ package com.mytestclient.module.utility;
 
 import com.mytestclient.MyTestClient;
 import com.mytestclient.finder.Activity;
-import com.mytestclient.finder.BaseScanner;
 import com.mytestclient.finder.WebMap;
 import com.mytestclient.module.Category;
 import com.mytestclient.module.Module;
@@ -45,8 +44,6 @@ import java.util.Map;
  *     map website shows every player live; this reads it. Instant, whole world.</li>
  *     <li><b>Activity radar</b>: block changes reach you from your whole render distance, much further
  *     than player positions. Mining, building and breaking far away shows up as hotspots.</li>
- *     <li><b>Base finder</b>: every chunk you load is scanned for player-made blocks (shulkers, ender
- *     chests, beacons, concrete, signs, lots of chests...).</li>
  *     <li><b>Patrol</b>: the elytra autopilot flies a spiral around you (or spawn) so the three
  *     scanners above cover a huge area while you are AFK, and every player met is recorded.</li>
  * </ol>
@@ -59,16 +56,12 @@ public class PlayerFinderModule extends Module {
             .visibleWhen(webMap::get));
     private final NumberSetting refresh = add(new NumberSetting("Refresh", "Seconds between web map updates.", 10, 2, 120, 1).visibleWhen(webMap::get));
     private final BooleanSetting activity = add(new BooleanSetting("Activity Radar", "Detect far-away mining/building from block changes.", true));
-    private final BooleanSetting bases = add(new BooleanSetting("Base Finder", "Scan loaded chunks for player-made bases and stashes.", true));
-    private final NumberSetting baseThreshold = add(new NumberSetting("Base Score", "Score a chunk needs to count as a base (higher = fewer false alarms).", 20, 5, 100, 1)
-            .visibleWhen(bases::get));
     private final BooleanSetting patrol = add(new BooleanSetting("Patrol", "Fly a spiral with the elytra autopilot to scan a large area (needs an elytra).", false));
     private final NumberSetting patrolRadius = add(new NumberSetting("Patrol Radius", "How far from the centre the spiral goes.", 3000, 200, 30000, 100).visibleWhen(patrol::get));
     private final NumberSetting patrolSpacing = add(new NumberSetting("Lane Spacing", "Blocks between two passes (0 = from your render distance).", 0, 0, 1024, 16).visibleWhen(patrol::get));
     private final ModeSetting patrolCenter = add(new ModeSetting("Patrol Centre", "Spiral around where you are, or around 0 0.", "Here", "Here", "Spawn (0 0)").visibleWhen(patrol::get));
-    private final BooleanSetting markers = add(new BooleanSetting("Markers", "Show players, hotspots and bases in the world.", true));
-    private final BooleanSetting waypoints = add(new BooleanSetting("Waypoints For Bases", "Add a waypoint for every base found.", false));
-    private final BooleanSetting alerts = add(new BooleanSetting("Alerts", "Notify on new bases and new activity hotspots.", true));
+    private final BooleanSetting markers = add(new BooleanSetting("Markers", "Show players and activity hotspots in the world.", true));
+    private final BooleanSetting alerts = add(new BooleanSetting("Alerts", "Notify on new activity hotspots.", true));
 
     private record MapPlayer(WebMap.PlayerPos pos, long time) {
     }
@@ -85,7 +78,7 @@ public class PlayerFinderModule extends Module {
     private final java.util.Set<Long> alertedHotspots = new java.util.HashSet<>();
 
     public PlayerFinderModule() {
-        super("Player Finder", "Finds players and bases anywhere: server web map, far activity, base scanner, elytra patrol.", Category.UTILITY);
+        super("Player Finder", "Finds players anywhere: server web map, far-away activity, elytra patrol.", Category.UTILITY);
     }
 
     @Override
@@ -106,9 +99,8 @@ public class PlayerFinderModule extends Module {
         stopPatrol("left the world");
         mapPlayers.clear();
         if (mc.getCurrentServerEntry() == null || !mc.getCurrentServerEntry().address.equals(sourceServer) || mc.player == null) {
-            // other server/world: its bases and hotspots must not show here
+            // other server/world: its hotspots must not show here
             Activity.clear();
-            BaseScanner.clear();
             alertedHotspots.clear();
         }
     }
@@ -117,7 +109,6 @@ public class PlayerFinderModule extends Module {
         List<String> s = new ArrayList<>();
         if (webMap.get()) s.add("web map");
         if (activity.get()) s.add("activity radar");
-        if (bases.get()) s.add("base finder");
         if (patrol.get()) s.add("patrol");
         return String.join(", ", s);
     }
@@ -126,18 +117,6 @@ public class PlayerFinderModule extends Module {
 
     public void onBlockChange(BlockPos pos, BlockState old, BlockState now) {
         if (activity.get()) Activity.onBlockChange(pos, old, now, 8);
-    }
-
-    public void onChunkLoad(WorldChunk chunk) {
-        if (!bases.get() || mc.world == null) return;
-        String dim = WaypointManager.currentDimension();
-        BaseScanner.Base base = BaseScanner.scan(chunk, dim, baseThreshold.getInt());
-        if (base == null) return;
-        if (alerts.get()) Notifications.warn(String.format("Base found at %d %d %d (%s)", base.center().getX(), base.center().getY(), base.center().getZ(), base.summary()));
-        if (waypoints.get()) {
-            MyTestClient.get().waypoints().add(new Waypoint("Base " + base.score(), base.center().getX(), base.center().getY(), base.center().getZ(),
-                    dim, WaypointManager.currentWorldKey(), 0xFFF472B6));
-        }
     }
 
     @Override
@@ -312,20 +291,11 @@ public class PlayerFinderModule extends Module {
             ChatUtil.info(String.format(" %s near %d %d %d (%s) - %s ago", h.describe(), h.last.getX(), h.last.getY(), h.last.getZ(),
                     h.dim.replace("minecraft:", ""), ago(h.lastTime)));
         }
-        List<BaseScanner.Base> bs = BaseScanner.bases();
-        bs.sort(Comparator.comparingInt(BaseScanner.Base::score).reversed());
-        ChatUtil.success("Bases (" + bs.size() + "):");
-        for (int i = 0; i < Math.min(10, bs.size()); i++) {
-            BaseScanner.Base b = bs.get(i);
-            ChatUtil.info(String.format(" score %d at %d %d %d (%s): %s", b.score(), b.center().getX(), b.center().getY(), b.center().getZ(),
-                    b.dim().replace("minecraft:", ""), b.summary()));
-        }
         if (patrolling) ChatUtil.info("Patrol: leg " + (patrolLeg + 1) + "/" + patrolPoints.size());
     }
 
     public void clearData() {
         Activity.clear();
-        BaseScanner.clear();
         mapPlayers.clear();
         alertedHotspots.clear();
     }
@@ -355,10 +325,6 @@ public class PlayerFinderModule extends Module {
                 case REDSTONE -> "⚡";
             };
             o.marker(h.last.getX() + 0.5, h.last.getY() + 1, h.last.getZ() + 0.5, 0xFFFACC15, icon + h.total(), "Activity: " + h.describe(), 0.7f);
-        }
-        for (BaseScanner.Base b : BaseScanner.bases()) {
-            if (!b.dim().equals(dim)) continue;
-            o.marker(b.center().getX() + 0.5, b.center().getY() + 1, b.center().getZ() + 0.5, 0xFFF472B6, "⌂" + b.score(), "Base: " + b.summary(), 0.7f);
         }
     }
 }

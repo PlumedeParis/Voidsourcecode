@@ -119,6 +119,17 @@ public final class RoutePlanner {
             return best;
         }
 
+        /** The route from {@code s} to {@code s + len}, as its own corner points (for drawing). */
+        public List<Vec3d> ahead(double s, double len) {
+            List<Vec3d> out = new ArrayList<>();
+            out.add(at(s));
+            for (int i = 0; i < points.size(); i++) {
+                if (cumulative[i] > s && cumulative[i] < s + len) out.add(points.get(i));
+            }
+            out.add(at(s + len));
+            return out;
+        }
+
         /** Direction of the route (horizontal unit vector) at {@code s}. */
         public Vec3d tangent(double s) {
             Vec3d a = at(s - 1), b = at(s + 1);

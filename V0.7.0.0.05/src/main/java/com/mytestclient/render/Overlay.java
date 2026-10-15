@@ -10,20 +10,21 @@ import org.joml.Matrix3x2fStack;
  * Drawing API for world-space overlays, passed to {@code Module#onRenderOverlay}.
  * <p>
  * 3D lines are clipped against the near plane, projected with {@link Projection}, clipped to the
- * screen and drawn as rotated rectangles in physical pixels (the GUI scale is undone) so lines stay
- * thin and crisp.
+ * screen and rasterised in physical pixels (the GUI scale is undone) so lines stay thin and crisp.
  */
 public final class Overlay {
     private final DrawContext ctx;
     private final float tickDelta;
-    private final int thickness;
+    private int thickness;
+    private final int baseThickness;
     /** True while the "physical pixel" matrix is pushed; kept across lines to avoid push/pop per line. */
     private boolean fine;
 
     public Overlay(DrawContext ctx, float tickDelta) {
         this.ctx = ctx;
         this.tickDelta = tickDelta;
-        this.thickness = Math.max(1, (int) Math.round(Projection.guiScale() * 0.5));
+        this.baseThickness = Math.max(1, (int) Math.round(Projection.guiScale() * 0.5));
+        this.thickness = baseThickness;
     }
 
     public DrawContext ctx() {
@@ -35,6 +36,13 @@ public final class Overlay {
     }
 
     // ------------------------------------------------------------------ 3D
+
+    /** Thicker line ({@code scale} x the normal thickness), e.g. for routes. */
+    public void line(double x1, double y1, double z1, double x2, double y2, double z2, int color, int scale) {
+        thickness = baseThickness * Math.max(1, scale);
+        line(x1, y1, z1, x2, y2, z2, color);
+        thickness = baseThickness;
+    }
 
     public void line(double x1, double y1, double z1, double x2, double y2, double z2, int color) {
         double[] a = Projection.toCamera(x1, y1, z1);
@@ -121,7 +129,7 @@ public final class Overlay {
         int ly = (int) Math.round(p[1]) - 10;
         flush();
         Render2D.roundedRect(ctx, lx - 3, ly - 2, w + 6, 12, 3, 0xA0101014);
-        ctx.drawText(tr, text, lx, ly, color | 0xFF000000, false);
+        ctx.drawText(tr, text, lx, ly, color | 0xFF000000, true);
     }
 
     /**
@@ -134,11 +142,10 @@ public final class Overlay {
         flush();
         TextRenderer tr = MinecraftClient.getInstance().textRenderer;
         int px = (int) Math.round(p[0]), py = (int) Math.round(p[1]);
-        // diamond
-        for (int i = 0; i < 4; i++) {
-            ctx.fill(px - i, py - 3 + i, px + i + 1, py - 2 + i, color | 0xFF000000);
-            ctx.fill(px - i, py + 3 - i, px + i + 1, py + 4 - i, color | 0xFF000000);
-        }
+        // dot: dark ring, colour, light centre
+        Render2D.circle(ctx, px, py, 5, 0xB0000000);
+        Render2D.circle(ctx, px, py, 4, color | 0xFF000000);
+        Render2D.circle(ctx, px, py, 1, 0xE0FFFFFF);
         double cx = Projection.width() / 2.0, cy = Projection.height() / 2.0;
         boolean focused = Math.abs(p[0] - cx) < 40 && Math.abs(p[1] - cy) < 40;
         String text = focused && detail != null ? detail : shortText;
@@ -149,8 +156,8 @@ public final class Overlay {
         m.translate(px, py + 6);
         m.scale(scale, scale);
         int w = tr.getWidth(text);
-        Render2D.roundedRect(ctx, -w / 2 - 2, -1, w + 4, 10, 2, 0x90101014);
-        ctx.drawText(tr, text, -w / 2, 0, focused ? 0xFFFFFFFF : (color | 0xFF000000), false);
+        Render2D.roundedRect(ctx, -w / 2 - 4, -2, w + 8, 12, 4, 0xB00A0A12);
+        ctx.drawText(tr, text, -w / 2, 0, focused ? 0xFFFFFFFF : (color | 0xFF000000), true);
         m.popMatrix();
     }
 
@@ -201,23 +208,43 @@ public final class Overlay {
         return new double[]{x0 + t0 * dx, y0 + t0 * dy, x0 + t1 * dx, y0 + t1 * dy};
     }
 
-    /**
-     * Draws a line as one rotated thin rectangle (a single fill, whatever its length or angle):
-     * much cheaper than pixel runs and without the staircase look.
-     */
+    /** Draws a line as horizontal/vertical runs so each run is a single fill call. */
     private void raster(double x1, double y1, double x2, double y2, int color) {
-        double dx = x2 - x1, dy = y2 - y1;
-        double len = Math.sqrt(dx * dx + dy * dy);
-        if (len < 0.5) {
-            ctx.fill((int) x1, (int) y1, (int) x1 + thickness, (int) y1 + thickness, color);
-            return;
+        int t = thickness;
+        if (Math.abs(x2 - x1) >= Math.abs(y2 - y1)) {
+            if (x1 > x2) {
+                double tx = x1, ty = y1;
+                x1 = x2; y1 = y2; x2 = tx; y2 = ty;
+            }
+            double slope = x2 == x1 ? 0 : (y2 - y1) / (x2 - x1);
+            int xs = (int) Math.floor(x1), xe = (int) Math.floor(x2);
+            int runStart = xs, runY = (int) Math.floor(y1);
+            for (int x = xs + 1; x <= xe; x++) {
+                int y = (int) Math.floor(y1 + (x - x1) * slope);
+                if (y != runY) {
+                    ctx.fill(runStart, runY, x, runY + t, color);
+                    runStart = x;
+                    runY = y;
+                }
+            }
+            ctx.fill(runStart, runY, xe + 1, runY + t, color);
+        } else {
+            if (y1 > y2) {
+                double tx = x1, ty = y1;
+                x1 = x2; y1 = y2; x2 = tx; y2 = ty;
+            }
+            double slope = y2 == y1 ? 0 : (x2 - x1) / (y2 - y1);
+            int ys = (int) Math.floor(y1), ye = (int) Math.floor(y2);
+            int runStart = ys, runX = (int) Math.floor(x1);
+            for (int y = ys + 1; y <= ye; y++) {
+                int x = (int) Math.floor(x1 + (y - y1) * slope);
+                if (x != runX) {
+                    ctx.fill(runX, runStart, runX + t, y, color);
+                    runStart = y;
+                    runX = x;
+                }
+            }
+            ctx.fill(runX, runStart, runX + t, ye + 1, color);
         }
-        Matrix3x2fStack m = ctx.getMatrices();
-        m.pushMatrix();
-        m.translate((float) x1, (float) y1);
-        m.rotate((float) Math.atan2(dy, dx));
-        m.translate(0, -thickness / 2f);
-        ctx.fill(0, 0, (int) Math.ceil(len), thickness, color);
-        m.popMatrix();
     }
 }

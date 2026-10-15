@@ -99,14 +99,6 @@ public final class ClientEvents {
         ClientChunkEvents.CHUNK_LOAD.register((world, chunk) -> {
             NewChunksModule newChunks = Modules.get(NewChunksModule.class);
             if (newChunks != null) newChunks.onChunkLoad(chunk.getPos());
-            com.mytestclient.module.utility.PlayerFinderModule finder = Modules.get(com.mytestclient.module.utility.PlayerFinderModule.class);
-            if (finder != null && finder.isEnabled()) {
-                try {
-                    finder.onChunkLoad(chunk);
-                } catch (Throwable t) {
-                    com.mytestclient.MyTestClient.LOGGER.warn("Base scan failed", t);
-                }
-            }
         });
 
         // "\" chat commands are handled locally and never sent to the server

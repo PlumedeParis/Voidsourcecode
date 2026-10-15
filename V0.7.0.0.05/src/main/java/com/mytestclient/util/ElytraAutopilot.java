@@ -241,97 +241,72 @@ public final class ElytraAutopilot {
         if (phase == Phase.TAKEOFF) phase = Phase.CRUISE;
         if (horizontal < 24 && !patrol) phase = Phase.LANDING;
 
-        // ---- 3. where to go: a point ahead on the route, or straight at the target
+        // ---- 3. steering, like Baritone: fly straight at the furthest point of the route that the
+        //         player's hitbox can reach without touching anything (loaded terrain only)
         boolean onRoute = route != null && phase != Phase.LANDING;
-        double off = 0;
         if (onRoute) {
             routeS = nether ? route.project3(pos, routeS) : route.project(pos, routeS);
             Vec3d on = route.at(routeS);
-            off = nether ? on.distanceTo(pos) : Math.hypot(on.x - pos.x, on.z - pos.z);
+            double off = nether ? on.distanceTo(pos) : Math.hypot(on.x - pos.x, on.z - pos.z);
             if (off > Math.max(40, route.cell * 3)) requestPlan(mc); // blown off course
             if (--replanTimer <= 0 && (route.unknownCells > 0 || route.partial)) requestPlan(mc); // new chunks, more detail
         }
-        // nether: short look-ahead so tunnels are followed tightly
-        double lookAhead = nether ? MathHelper.clamp(maxH * 2.5, 3, 10) : MathHelper.clamp(maxH * 5, 6, 40);
-        Vec3d aim = onRoute ? route.at(routeS + lookAhead) : target;
-        double ax = aim.x - pos.x, az = aim.z - pos.z, aimDist = Math.hypot(ax, az);
-        double hx = aimDist > 1e-4 ? ax / aimDist : 0, hz = aimDist > 1e-4 ? az / aimDist : 0;
-
-        // ---- 4. speed: limited by turns, by distance from the line, by the target and unloaded terrain
-        double speed = maxH;
-        if (phase == Phase.LANDING) speed = Math.min(speed, Math.max(0.15, horizontal / 20.0));
+        Vec3d aim = null;
+        double clearDist = Double.MAX_VALUE;
         if (onRoute) {
-            Vec3d t1 = route.tangent(routeS), t2 = route.tangent(routeS + Math.max(8, maxH * 8));
-            double cos = MathHelper.clamp(t1.dotProduct(t2), -1, 1);
-            double turn = Math.toDegrees(Math.acos(cos));
-            speed *= MathHelper.clamp(1 - turn / 110, 0.25, 1);
-            if (off > 2) speed *= MathHelper.clamp(2 / off, 0.35, 1);
-        }
-        double range = Math.min(onRoute ? route.length() - routeS : horizontal, MathHelper.clamp(maxH * 40, 48, 160));
-        double unloadedAt = Double.MAX_VALUE;
-
-        Vec3d move;
-        double desiredY;
-        if (nether) {
-            // ---- Nether: follow the planned line in 3D
-            double planned;
-            if (onRoute) planned = aim.y;
-            else if (phase == Phase.LANDING) planned = MathHelper.clamp(target.y, NETHER_FLOOR + 2, NETHER_ROOF - 4);
-            else planned = MathHelper.clamp(Math.max(target.y, 40), NETHER_FLOOR + 2, NETHER_ROOF - 4);
-            if (!onRoute && loaded(world, aim.x, aim.z)) {
-                Double free = nearestGap(world, MathHelper.floor(aim.x), MathHelper.floor(aim.z), planned, planned);
-                if (free != null) planned = free;
-            }
-            desiredY = planned;
-            for (double d = SAMPLE_STEP; d <= range; d += SAMPLE_STEP) {
-                Vec3d s = onRoute ? route.at(routeS + d) : pos.add(hx * d, 0, hz * d);
-                if (!loaded(world, s.x, s.z)) {
-                    unloadedAt = d;
+            double maxLook = Math.min(route.length() - routeS, Math.max(32, maxH * 14));
+            for (double d = maxLook; d >= 2; d -= Math.max(1.5, d * 0.22)) {
+                Vec3d c = route.at(routeS + d);
+                if (!loaded(world, c.x, c.z)) continue;
+                if (!nether) c = new Vec3d(c.x, Math.max(c.y, ground(world, c.x, c.z) + MIN_CLEARANCE), c.z);
+                if (hitboxClear(world, p, pos, c, nether)) {
+                    aim = c;
+                    clearDist = c.distanceTo(pos);
                     break;
                 }
             }
-            if (unloadedAt != Double.MAX_VALUE) speed = Math.min(speed, Math.max(0.3, (unloadedAt - 8) / 12.0));
-            Vec3d to = new Vec3d(aim.x - pos.x, planned - pos.y, aim.z - pos.z);
-            if (phase == Phase.LANDING && horizontal < 2) to = new Vec3d(target.x - pos.x, -2, target.z - pos.z);
-            double len = to.length();
-            move = len < 1e-4 ? Vec3d.ZERO : to.multiply(Math.min(speed, len) / len);
-            if (Math.abs(move.y) > maxV) move = move.multiply(maxV / Math.abs(move.y));
+            if (aim == null) {
+                aim = route.at(routeS + 3); // nothing visible: creep along the line, the safety net steers
+                clearDist = 2;
+            }
+        } else if (nether) {
+            double y = MathHelper.clamp(phase == Phase.LANDING ? target.y : Math.max(target.y, 40), NETHER_FLOOR + 2, NETHER_ROOF - 4);
+            if (loaded(world, target.x, target.z)) {
+                Double free = nearestGap(world, MathHelper.floor(target.x), MathHelper.floor(target.z), y, y);
+                if (free != null) y = free;
+            }
+            aim = new Vec3d(target.x, y, target.z);
         } else {
-            // ---- Overworld / End: route for the direction, terrain ahead for the height
-            double neededRatio = 0;
-            double maxGround = ground(world, pos.x, pos.z);
-            double plannedMax = Double.NEGATIVE_INFINITY;
-            for (double d = SAMPLE_STEP; d <= range; d += SAMPLE_STEP) {
-                Vec3d s = onRoute ? route.at(routeS + d) : pos.add(hx * d, 0, hz * d);
-                if (onRoute && d <= 64) plannedMax = Math.max(plannedMax, s.y);
-                if (!loaded(world, s.x, s.z)) {
-                    unloadedAt = d;
-                    break;
-                }
-                double h = Math.max(ground(world, s.x, s.z),
-                        Math.max(ground(world, s.x - hz * 1.5, s.z + hx * 1.5), ground(world, s.x + hz * 1.5, s.z - hx * 1.5)));
-                maxGround = Math.max(maxGround, h);
-                double dy = h + MIN_CLEARANCE - pos.y;
-                if (dy > 0) neededRatio = Math.max(neededRatio, dy / Math.max(1, d - 1.5));
-            }
+            double y;
             if (phase == Phase.LANDING) {
                 double landY = Math.max(target.y, ground(world, target.x, target.z));
-                desiredY = horizontal < 6 ? landY : Math.max(landY, maxGround + MIN_CLEARANCE);
+                double midGround = ground(world, (pos.x + target.x) / 2, (pos.z + target.z) / 2);
+                y = horizontal < 6 ? landY : Math.max(landY, Math.max(midGround, ground(world, pos.x, pos.z)) + MIN_CLEARANCE);
             } else {
-                desiredY = Math.min(Math.max(maxGround + CRUISE_CLEARANCE, plannedMax), world.getTopYInclusive() + 30);
+                // no route (planning timed out): cruise above the terrain ahead
+                double ahead = ground(world, pos.x, pos.z);
+                double dx0 = target.x - pos.x, dz0 = target.z - pos.z, l0 = Math.max(1e-4, Math.hypot(dx0, dz0));
+                for (int d = 8; d <= 64; d += 8) ahead = Math.max(ahead, ground(world, pos.x + dx0 / l0 * d, pos.z + dz0 / l0 * d));
+                y = Math.min(ahead + CRUISE_CLEARANCE, world.getTopYInclusive() + 30);
             }
-            if (neededRatio > 0) speed = Math.min(speed, maxV / neededRatio);
-            if (unloadedAt != Double.MAX_VALUE) speed = Math.min(speed, Math.max(0.3, (unloadedAt - 8) / 12.0));
-            double vy = MathHelper.clamp((desiredY - pos.y) * 0.3, -maxV, maxV);
-            if (neededRatio > 0) vy = Math.max(vy, Math.min(maxV, speed * neededRatio * 1.1));
-            if (phase == Phase.LANDING) {
-                double below = pos.y - ground(world, pos.x, pos.z);
-                vy = Math.max(vy, -Math.max(0.25, below / 6.0)); // soft touchdown
-            }
-            double speedH = horizontal < 1.5 && phase == Phase.LANDING ? 0 : Math.min(speed, Math.max(0.15, aimDist));
-            move = new Vec3d(hx * speedH, vy, hz * speedH);
+            aim = new Vec3d(target.x, y, target.z);
         }
+        double ax = aim.x - pos.x, az = aim.z - pos.z, aimDist = Math.hypot(ax, az);
+        double hx = aimDist > 1e-4 ? ax / aimDist : 0, hz = aimDist > 1e-4 ? az / aimDist : 0;
+        double desiredY = aim.y;
 
+        // ---- 4. speed: full speed; only slower when the free straight line ahead is short, or landing
+        double speed = maxH;
+        if (onRoute && clearDist < maxH * 3) speed = Math.max(0.6, clearDist / 3);
+        if (phase == Phase.LANDING) speed = Math.min(speed, Math.max(0.2, horizontal / 12.0));
+        Vec3d to = aim.subtract(pos);
+        if (phase == Phase.LANDING && horizontal < 2) to = new Vec3d(target.x - pos.x, nether ? -2 : Math.min(-0.5, desiredY - pos.y), target.z - pos.z);
+        double toLen = to.length();
+        Vec3d move = toLen < 1e-4 ? Vec3d.ZERO : to.multiply(Math.min(speed, toLen) / toLen);
+        if (phase == Phase.LANDING && !nether) {
+            double below = pos.y - ground(world, pos.x, pos.z);
+            if (move.y < -Math.max(0.25, below / 6.0)) move = new Vec3d(move.x, -Math.max(0.25, below / 6.0), move.z); // soft touchdown
+        }
         if (emergencyLanding) move = new Vec3d(0, -0.6, 0);
 
         // just hit something: climb out before going on
@@ -505,15 +480,11 @@ public final class ElytraAutopilot {
     public static void render(Overlay o) {
         if (!active) return;
         if (route != null) {
-            double s = routeS;
-            Vec3d prev = route.at(s);
-            double step = Math.max(3, route.cell / 2.0);
-            for (int i = 0; i < 90 && s < route.length(); i++) {
-                s += step;
-                Vec3d next = route.at(s);
-                float fade = 1f - i / 90f;
-                o.line(prev.x, prev.y + 0.5, prev.z, next.x, next.y + 0.5, next.z, Colors.withAlpha(0xFF22D3EE, (int) (60 + 170 * fade)));
-                prev = next;
+            // one clean opaque line through the route's corners (no overlapping translucent pieces)
+            List<Vec3d> pts = route.ahead(routeS, 400);
+            for (int i = 1; i < pts.size(); i++) {
+                Vec3d a = pts.get(i - 1), b = pts.get(i);
+                o.line(a.x, a.y + 0.3, a.z, b.x, b.y + 0.3, b.z, 0xFF22D3EE, 2);
             }
         }
         o.flush();
@@ -613,17 +584,23 @@ public final class ElytraAutopilot {
         return null;
     }
 
-    /** Raycasts from the feet, the middle and the head of the player; lava counts as an obstacle. */
-    private static boolean isClear(ClientWorld world, ClientPlayerEntity p, Vec3d pos, Vec3d dir, double distance, boolean nether) {
-        Vec3d end = pos.add(dir.multiply(distance));
-        if (nether && (end.y < NETHER_FLOOR || end.y > NETHER_ROOF)) return false; // lava sea / bedrock roof
-        double[] heights = {0.2, 1.0, 1.7};
-        for (double h : heights) {
-            Vec3d from = pos.add(0, h, 0);
-            Vec3d to = end.add(0, h, 0);
-            HitResult hit = world.raycast(new RaycastContext(from, to, RaycastContext.ShapeType.COLLIDER, RaycastContext.FluidHandling.ANY, p));
-            if (hit.getType() != HitResult.Type.MISS) return false;
+    private static final double[][] HITBOX = {{0, 0.3, 0}, {0.35, 0.0, 0.35}, {-0.35, 0.0, -0.35}, {0.35, 0.65, -0.35}, {-0.35, 0.65, 0.35}};
+
+    /** Can the gliding player's hitbox move in a straight line from {@code from} to {@code to}? */
+    private static boolean hitboxClear(ClientWorld world, ClientPlayerEntity p, Vec3d from, Vec3d to, boolean nether) {
+        if (nether && (to.y < NETHER_FLOOR || to.y > NETHER_ROOF)) return false;
+        for (double[] o : HITBOX) {
+            Vec3d a = from.add(o[0], o[1], o[2]), b = to.add(o[0], o[1], o[2]);
+            if (world.raycast(new RaycastContext(a, b, RaycastContext.ShapeType.COLLIDER, RaycastContext.FluidHandling.ANY, p)).getType() != HitResult.Type.MISS) {
+                return false;
+            }
         }
         return true;
+    }
+
+    /** Is the straight move along {@code dir} free for the gliding hitbox? Lava counts as an obstacle. */
+    private static boolean isClear(ClientWorld world, ClientPlayerEntity p, Vec3d pos, Vec3d dir, double distance, boolean nether) {
+        // same rays as the steering: the gliding hitbox is only 0.6 high
+        return hitboxClear(world, p, pos, pos.add(dir.multiply(distance)), nether);
     }
 }
