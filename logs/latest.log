@@ -1,0 +1,24 @@
+[22:56:37] [Test worker/INFO]: Built worldgen registries in 1398 ms
+[22:56:38] [Test worker/INFO]: [STDOUT]: [seedworld] overworld built in 1944 ms
+[22:56:38] [Test worker/INFO]: [STDOUT]: [seedworld] biome at 0,64,0 = minecraft:ocean, surface y = 63
+[22:56:38] [Test worker/INFO]: [STDOUT]: [seedworld] 4096 biome samples in 285 ms
+[22:56:41] [Test worker/INFO]: [STDOUT]: [seedworld] nearest village_ -> minecraft:village_plains @ -136 74 -824 (2295 ms)
+[22:56:41] [Test worker/INFO]: [STDOUT]: [seedworld] nearest pillager_outpost -> minecraft:pillager_outpost @ 280 71 -952 (37 ms)
+[22:56:42] [Test worker/INFO]: [STDOUT]: [seedworld] nearest monument -> minecraft:monument @ 616 63 -1832 (1391 ms)
+[22:56:45] [Test worker/INFO]: [STDOUT]: [seedworld] nearest mansion -> minecraft:mansion @ 4664 72 7064 (2896 ms)
+[22:57:08] [Test worker/INFO]: [STDOUT]: [seedworld] nearest stronghold -> minecraft:stronghold @ -552 40 -1640 (23097 ms)
+[22:57:08] [Test worker/INFO]: [STDOUT]: [seedworld] nearest ancient_city -> minecraft:ancient_city @ 184 -27 -168 (1 ms)
+[22:57:08] [Test worker/INFO]: [STDOUT]: [seedworld] nearest trial_chambers -> minecraft:trial_chambers @ -216 -30 72 (0 ms)
+[22:57:08] [Test worker/INFO]: [STDOUT]: [seedworld] nether biome at 0,64,0 = minecraft:nether_wastes
+[22:57:08] [Test worker/INFO]: [STDOUT]: [seedworld] nearest fortress -> 104 -504
+[22:57:08] [Test worker/INFO]: [STDOUT]: [seedworld] nearest bastion_remnant -> -264 -120
+[22:57:09] [Test worker/INFO]: [STDOUT]: [seedworld] nearest end city from 1500,0 -> 2040 -264
+[22:57:10] [Test worker/INFO]: [STDOUT]: [flight] start y 78
+[22:57:11] [VoidClient-FlightPlanner/INFO]: Flight planner: 204 cells, 1725 expanded, 1604 ms, partial=false
+[22:57:11] [Test worker/INFO]: [STDOUT]: [flight] 9 corners, 529 blocks, partial=false, seed=true in 1641 ms
+[22:57:11] [Test worker/INFO]: [STDOUT]: [flight] corners inside terrain: 0
+[22:57:13] [Test worker/INFO]: [STDOUT]: [seedfinder] 12345 village 1000 -> Village Plains at -136 -824 (835m)
+[22:57:13] [Test worker/INFO]: [STDOUT]: [seedfinder] 12345 mansion 1000 -> null
+[22:57:13] [Test worker/INFO]: quick filter: 4932 of 20000 seeds passed
+[22:57:13] [Test worker/INFO]: [STDOUT]: [seedfinder] quick filter: 102438 seeds/s
+[22:57:15] [Test worker/INFO]: [STDOUT]: [seedfinder] full check with stronghold -> Village Plains at -136 -824 (835m), Stronghold at -552 -1640 (1730m) in 1989 ms
