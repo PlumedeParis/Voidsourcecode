@@ -87,6 +87,7 @@ if (file("src/devmod").exists()) {
                 vmArg "-Ddevshots.tag=${project.findProperty('devshotsTag') ?: 'shot'}"
                 vmArg "-Ddevshots.scales=${project.findProperty('devshotsScales') ?: '2,4'}"
                 vmArg "-Ddevshots.only=${project.findProperty('devshotsOnly') ?: ''}"
+                vmArg "-Ddevshots.features=${project.findProperty('devshotsFeatures') ?: 'false'}"
             }
         }
     }

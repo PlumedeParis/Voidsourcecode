@@ -20,7 +20,6 @@ import com.mytestclient.module.utility.TargetInfoModule;
 import com.mytestclient.module.visuals.EspModule;
 import com.mytestclient.module.visuals.FullbrightModule;
 import com.mytestclient.module.visuals.StorageEspModule;
-import com.mytestclient.module.visuals.ZoomModule;
 import com.mytestclient.module.world.NewChunksModule;
 import com.mytestclient.module.world.QuickWaypointModule;
 import com.mytestclient.module.world.SeedInfoModule;
@@ -92,12 +91,12 @@ public class ModuleManager {
         register(new SpiderModule());
         register(new com.mytestclient.module.movement.WaterWalkModule());
         register(new com.mytestclient.module.movement.PathfinderModule());
+        register(new com.mytestclient.module.movement.ElytraRangeModule());
 
         // Visuals
         register(new FullbrightModule());
         register(new EspModule());
         register(new StorageEspModule());
-        register(new ZoomModule());
         register(new BlockSearchModule());
         register(new BreadcrumbsModule());
         register(new NoHurtCamModule());
@@ -116,6 +115,7 @@ public class ModuleManager {
         register(new QuickWaypointModule());
         register(new FastPlaceModule());
         register(new EventLocatorModule());
+        register(new com.mytestclient.module.world.HighwayCompassModule());
 
         // Combat
         register(new AutoCrystalModule());
@@ -132,6 +132,7 @@ public class ModuleManager {
         register(new com.mytestclient.module.combat.AutoPotModule());
         register(new com.mytestclient.module.combat.BowAimbotModule());
         register(new com.mytestclient.module.combat.AutoLogModule());
+        register(new com.mytestclient.module.combat.DeathRecapModule());
 
         // Utility
         register(new RadarModule());
@@ -144,6 +145,7 @@ public class ModuleManager {
         register(new ChestMemoryModule());
         register(new PlayerTrackerModule());
         register(new com.mytestclient.module.utility.PlayerFinderModule());
+        register(new com.mytestclient.module.utility.TailAlarmModule());
 
         // HUD
         register(new CoordinatesHud());
@@ -161,6 +163,7 @@ public class ModuleManager {
         register(new AutoRespawnModule());
         register(new com.mytestclient.module.misc.PlayerProgrammingModule());
         register(new AntiAfkModule());
+        register(new com.mytestclient.module.misc.LeakGuardModule());
     }
 
     public void register(Module module) {

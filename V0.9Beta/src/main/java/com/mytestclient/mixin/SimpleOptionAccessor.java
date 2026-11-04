@@ -6,7 +6,7 @@ import org.spongepowered.asm.mixin.gen.Accessor;
 
 /**
  * Writes an option value directly, bypassing the slider range validation. Used by Fullbright
- * (gamma above 100%) and Zoom (FOV below 30). Both restore the original value when disabled.
+ * (gamma above 100%), and to repair options left out of range by older versions.
  */
 @Mixin(SimpleOption.class)
 public interface SimpleOptionAccessor {

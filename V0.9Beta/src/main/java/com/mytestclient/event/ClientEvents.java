@@ -116,7 +116,10 @@ public final class ClientEvents {
         });
 
         // "\" chat commands are handled locally and never sent to the server
-        ClientSendMessageEvents.ALLOW_CHAT.register(message -> !CommandManager.handle(message));
+        // Leak Guard may hold back messages/private messages that contain your coordinates
+        ClientSendMessageEvents.ALLOW_CHAT.register(message -> !CommandManager.handle(message)
+                && com.mytestclient.module.misc.LeakGuardModule.allowChat(message));
+        ClientSendMessageEvents.ALLOW_COMMAND.register(com.mytestclient.module.misc.LeakGuardModule::allowCommand);
 
         ItemTooltipCallback.EVENT.register((stack, context, type, lines) -> {
             ItemInfoModule info = Modules.get(ItemInfoModule.class);
@@ -124,7 +127,7 @@ public final class ClientEvents {
         });
     }
 
-    /** Older versions of Zoom/Fullbright could leave an out-of-range FOV or gamma in options.txt. */
+    /** Older versions of Zoom (removed in V0.9) and Fullbright could leave an out-of-range FOV or gamma in options.txt. */
     private static void repairOptions(MinecraftClient mc) {
         int fov = mc.options.getFov().getValue();
         if (fov < 30 || fov > 110) {

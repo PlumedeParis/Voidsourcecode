@@ -8,6 +8,9 @@ import net.minecraft.network.packet.s2c.play.ChunkDeltaUpdateS2CPacket;
 import net.minecraft.network.packet.s2c.play.WorldTimeUpdateS2CPacket;
 import net.minecraft.network.packet.s2c.play.WorldEventS2CPacket;
 import net.minecraft.network.packet.s2c.play.PlaySoundS2CPacket;
+import net.minecraft.network.packet.s2c.play.EntityDamageS2CPacket;
+import net.minecraft.network.packet.s2c.play.EntityStatusS2CPacket;
+import com.mytestclient.module.combat.DeathRecapModule;
 import com.mytestclient.module.world.EventLocatorModule;
 import com.mytestclient.util.TickRate;
 import org.spongepowered.asm.mixin.Mixin;
@@ -78,5 +81,21 @@ public abstract class ClientPlayNetworkHandlerMixin {
         if (locator != null && locator.isEnabled()) {
             locator.onSound(packet.getSound().value().id().toString(), packet.getX(), packet.getY(), packet.getZ());
         }
+    }
+
+    /** Death Recap: every hit you take (type, attacker, direct source). TAIL = client thread. */
+    @Inject(method = "onEntityDamage", at = @At("TAIL"), require = 0)
+    private void mytestclient$damage(EntityDamageS2CPacket packet, CallbackInfo ci) {
+        DeathRecapModule recap = Modules.get(DeathRecapModule.class);
+        if (recap != null && recap.isEnabled()) recap.onDamage(packet.entityId(), packet.sourceType(), packet.sourceCauseId(), packet.sourceDirectId());
+    }
+
+    /** Death Recap: entity status 35 on the local player = a totem of undying popped. */
+    @Inject(method = "onEntityStatus", at = @At("TAIL"), require = 0)
+    private void mytestclient$status(EntityStatusS2CPacket packet, CallbackInfo ci) {
+        var mc = net.minecraft.client.MinecraftClient.getInstance();
+        if (packet.getStatus() != 35 || mc.world == null || mc.player == null || packet.getEntity(mc.world) != mc.player) return;
+        DeathRecapModule recap = Modules.get(DeathRecapModule.class);
+        if (recap != null && recap.isEnabled()) recap.onTotemPop();
     }
 }

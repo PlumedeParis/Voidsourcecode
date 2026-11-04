@@ -70,7 +70,7 @@ public abstract class Module {
         return false;
     }
 
-    /** Whether the enabled state is written to the config (false for e.g. Freecam/Zoom). */
+    /** Whether the enabled state is written to the config (false for e.g. Freecam). */
     public boolean persistsState() {
         return true;
     }
