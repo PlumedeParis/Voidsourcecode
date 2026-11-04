@@ -1,0 +1,93 @@
+plugins {
+    id 'fabric-loom' version "${loom_version}"
+}
+
+version = project.mod_version
+group = project.maven_group
+
+base {
+    archivesName = project.archives_base_name
+}
+
+repositories {
+    // Fabric Loom adds the Minecraft, Fabric and Mojang repositories automatically.
+}
+
+dependencies {
+    minecraft "com.mojang:minecraft:${project.minecraft_version}"
+    mappings "net.fabricmc:yarn:${project.yarn_mappings}:v2"
+    modImplementation "net.fabricmc:fabric-loader:${project.loader_version}"
+    modImplementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_version}"
+
+    // headless tests of the client-side world generator (Seed Map)
+    testImplementation "net.fabricmc:fabric-loader-junit:${project.loader_version}"
+}
+
+test {
+    useJUnitPlatform()
+    testLogging {
+        showStandardStreams = true
+        exceptionFormat = "full"
+    }
+}
+
+processResources {
+    inputs.property "version", project.version
+    inputs.property "label", project.release_label
+
+    filesMatching("fabric.mod.json") {
+        expand "version": inputs.properties.version, "label": inputs.properties.label
+    }
+}
+
+tasks.withType(JavaCompile).configureEach {
+    it.options.release = 21
+    it.options.encoding = "UTF-8"
+}
+
+java {
+    withSourcesJar()
+    sourceCompatibility = JavaVersion.VERSION_21
+    targetCompatibility = JavaVersion.VERSION_21
+}
+
+jar {
+    inputs.property "archivesName", project.base.archivesName
+    from("LICENSE") {
+        rename { "${it}_${inputs.properties.archivesName}" }
+    }
+}
+
+// Loom's remapJar produces the jar players use
+remapJar {
+    archiveFileName = "VoidClient_${project.release_label}.jar"
+}
+
+// Development only: a screenshot tour of every GUI (src/devmod). It is never part of the release
+// jar; run it with ./gradlew runDevshots -PdevshotsTag=after (needs a display, e.g. xvfb-run).
+if (file("src/devmod").exists()) {
+    sourceSets {
+        devmod {
+            compileClasspath += main.compileClasspath + main.output
+            runtimeClasspath += main.runtimeClasspath + main.output
+        }
+    }
+    loom {
+        mods {
+            mytestclient { sourceSet sourceSets.main }
+            "voidclient-devshots" { sourceSet sourceSets.devmod }
+        }
+        runs {
+            devshots {
+                client()
+                name "Dev screenshots"
+                source sourceSets.devmod
+                runDir "run"
+                programArgs "--width", "1920", "--height", "1080"
+                vmArg "-Ddevshots.tag=${project.findProperty('devshotsTag') ?: 'shot'}"
+                vmArg "-Ddevshots.scales=${project.findProperty('devshotsScales') ?: '2,4'}"
+                vmArg "-Ddevshots.only=${project.findProperty('devshotsOnly') ?: ''}"
+            }
+        }
+    }
+}
