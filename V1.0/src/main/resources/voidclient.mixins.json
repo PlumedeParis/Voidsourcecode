@@ -1,0 +1,28 @@
+{
+  "required": true,
+  "minVersion": "0.8",
+  "package": "com.voidclient.mixin",
+  "compatibilityLevel": "JAVA_21",
+  "client": [
+    "CameraMixin",
+    "ChatInputSuggestorMixin",
+    "ClientConnectionMixin",
+    "ClientPlayNetworkHandlerMixin",
+    "ClientPlayerEntityMixin",
+    "ClientPlayerInteractionManagerMixin",
+    "ClientWorldPropertiesMixin",
+    "EntityMixin",
+    "GameOptionsMixin",
+    "GameRendererMixin",
+    "MinecraftClientAccessor",
+    "MinecraftClientMixin",
+    "MountControlMixin",
+    "PlayerEntityMixin",
+    "SimpleOptionAccessor",
+    "TitleScreenMixin",
+    "WorldMixin"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}
